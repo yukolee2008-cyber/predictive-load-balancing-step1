@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# 日志文件（带时间戳，每次运行生成新文件）
+logs/*.log
+
+# 数据文件（可选：如果不想纳入版本控制）
+data/raw/*.csv
+data/processed/*.csv
+
+# 模型文件（较大，通常不纳入版本控制）
+models/*.pth
+models/*.pt
+
+# 结果文件（每次运行覆盖，可选择性提交）
+# 如果想保留实验结果，可以注释掉下面这些行
+results/simulation/
+results/comparison/
+results/training/
+results/archives/
+
+# 临时文件
+~$*
+*.tmp
+*.bak
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 其他
+*.log

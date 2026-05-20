@@ -1,0 +1,347 @@
+# config_data.yaml
+# 数据生成模块独立配置文件
+# 按照设计文档规范：7种 date_profile，每个使用 2小时粒度的 hour_segments
+
+# ============================================================================
+# 全局配置
+# ============================================================================
+global:
+  seed: 42                          # 随机种子，保证可复现性
+  start_date: "2025-01-01"         # 数据生成起始日期 (YYYY-MM-DD)
+  num_days: 90                      # 生成数据的总天数
+  time_interval_minutes: 5          # 时间分辨率（分钟）
+  
+  # 输出配置
+  output:
+    format: csv                     # 输出格式: csv | json | parquet
+    path: data/                     # 输出路径（相对于项目根目录）
+    filename_prefix: raw_traffic        # 输出文件名前缀
+    
+  # 网络拓扑配置
+  network:
+    n_gnbs: 3                       # 基站数量
+
+# ============================================================================
+# 日期类型配置（Date Profiles）
+# 7 种不同的日期类型，每个使用 2小时粒度的 hour_segments
+# 判断优先级：lunar_eve -> spring_festival -> major_holiday -> other_holiday
+#             -> pre_holiday -> normal_friday -> normal_weekday
+# ============================================================================
+date_profiles:
+  # --------------------------------------------------------------------------
+  # 1. lunar_eve（除夕）
+  # 特殊模式：下午至晚上负载极高，跨年夜特殊
+  # --------------------------------------------------------------------------
+  lunar_eve:
+    description: "除夕 - 下午至晚上负载极高，跨年夜特殊"
+    enabled: true
+    
+    hour_segments:
+      "0-1":   {center: 0.25, max: 0.45}   # 凌晨准备
+      "2-3":   {center: 0.15, max: 0.30}   # 逐渐平静
+      "4-5":   {center: 0.12, max: 0.25}   # 凌晨最低
+      "6-7":   {center: 0.18, max: 0.35}   # 早起准备
+      "8-9":   {center: 0.35, max: 0.55}   # 上午准备活动
+      "10-11": {center: 0.55, max: 0.75}   # 购物/准备高峰
+      "12-13": {center: 0.50, max: 0.70}   # 午餐/短暂休息
+      "14-15": {center: 0.65, max: 0.85}   # 下午准备高峰
+      "16-17": {center: 0.80, max: 1.00}   # 年夜饭准备冲刺
+      "18-19": {center: 0.95, max: 1.15}   # 年夜饭高峰（超载）
+      "20-21": {center: 1.00, max: 1.20}   # 看春晚/守岁（极端峰值，超载）
+      "22-23": {center: 0.95, max: 1.10}   # 守岁活动（超载）
+
+  # --------------------------------------------------------------------------
+  # 2. spring_festival（春节当天）
+  # 特殊模式：凌晨高活跃，白天拜年活动，晚上家庭聚会
+  # --------------------------------------------------------------------------
+  spring_festival:
+    description: "春节当天 - 凌晨高活跃，白天拜年活动，晚上家庭聚会"
+    enabled: true
+    
+    hour_segments:
+      "0-1":   {center: 0.90, max: 1.10}   # 跨年祝福高峰（超载）
+      "2-3":   {center: 0.55, max: 0.75}   # 持续活跃
+      "4-5":   {center: 0.25, max: 0.45}   # 逐渐下降
+      "6-7":   {center: 0.20, max: 0.38}   # 早起拜年
+      "8-9":   {center: 0.40, max: 0.60}   # 拜年活动开始
+      "10-11": {center: 0.60, max: 0.80}   # 拜年高峰
+      "12-13": {center: 0.65, max: 0.85}   # 午餐/家庭聚会
+      "14-15": {center: 0.55, max: 0.75}   # 下午活动
+      "16-17": {center: 0.50, max: 0.70}   # 活动减少
+      "18-19": {center: 0.70, max: 0.90}   # 晚餐/家庭聚会
+      "20-21": {center: 0.75, max: 0.95}   # 晚间活动高峰
+      "22-23": {center: 0.60, max: 0.80}   # 深夜仍较高
+
+  # --------------------------------------------------------------------------
+  # 3. major_holiday（五一/国庆当天）
+  # 重大节假日，全天负载较高，有明显模式
+  # --------------------------------------------------------------------------
+  major_holiday:
+    description: "重大节假日（五一/国庆）- 全天负载较高"
+    enabled: true
+    
+    hour_segments:
+      "0-1":   {center: 0.28, max: 0.48}   # 凌晨庆祝活动
+      "2-3":   {center: 0.18, max: 0.35}   # 夜间活动
+      "4-5":   {center: 0.12, max: 0.25}   # 凌晨最低
+      "6-7":   {center: 0.10, max: 0.22}   # 早起少
+      "8-9":   {center: 0.28, max: 0.48}   # 出行/活动开始
+      "10-11": {center: 0.55, max: 0.75}   # 上午高峰（景点）
+      "12-13": {center: 0.50, max: 0.70}   # 午餐/休息
+      "14-15": {center: 0.60, max: 0.80}   # 下午活动高峰
+      "16-17": {center: 0.65, max: 0.85}   # 下午景点高峰
+      "18-19": {center: 0.70, max: 0.90}   # 晚餐时段
+      "20-21": {center: 0.75, max: 0.95}   # 夜间娱乐高峰
+      "22-23": {center: 0.60, max: 0.80}   # 深夜仍活跃
+
+  # --------------------------------------------------------------------------
+  # 4. other_holiday（其他节假日，含周末）
+  # 典型的休息日模式，无早晚通勤高峰
+  # --------------------------------------------------------------------------
+  other_holiday:
+    description: "其他节假日（含周末）- 无通勤高峰"
+    enabled: true
+    
+    hour_segments:
+      "0-1":   {center: 0.20, max: 0.38}   # 比工作日高（晚睡）
+      "2-3":   {center: 0.12, max: 0.25}   # 夜间低
+      "4-5":   {center: 0.10, max: 0.22}   # 凌晨最低
+      "6-7":   {center: 0.09, max: 0.20}   # 无早高峰
+      "8-9":   {center: 0.15, max: 0.30}   # 懒觉时间
+      "10-11": {center: 0.35, max: 0.55}   # 上午活动开始
+      "12-13": {center: 0.42, max: 0.62}   # 午间活动高峰
+      "14-15": {center: 0.40, max: 0.60}   # 下午活动
+      "16-17": {center: 0.45, max: 0.65}   # 下午外出高峰
+      "18-19": {center: 0.52, max: 0.72}   # 晚餐时段
+      "20-21": {center: 0.58, max: 0.78}   # 晚间娱乐高峰
+      "22-23": {center: 0.45, max: 0.65}   # 深夜娱乐
+
+  # --------------------------------------------------------------------------
+  # 5. pre_holiday（节假日前一天）
+  # 类似周五但更极端，晚上和深夜负载更高
+  # --------------------------------------------------------------------------
+  pre_holiday:
+    description: "节假日前一天 - 晚上和深夜负载更高"
+    enabled: true
+    
+    hour_segments:
+      "0-1":   {center: 0.15, max: 0.30}   # 凌晨
+      "2-3":   {center: 0.10, max: 0.22}   # 夜间
+      "4-5":   {center: 0.10, max: 0.20}   # 凌晨
+      "6-7":   {center: 0.18, max: 0.35}   # 早高峰减弱
+      "8-9":   {center: 0.48, max: 0.68}   # 工作热情低
+      "10-11": {center: 0.42, max: 0.62}   # 工作时段
+      "12-13": {center: 0.40, max: 0.60}   # 午餐
+      "14-15": {center: 0.38, max: 0.58}   # 下午心不在焉
+      "16-17": {center: 0.35, max: 0.55}   # 提前下班准备
+      "18-19": {center: 0.70, max: 0.90}   # 晚高峰（聚会、出行）
+      "20-21": {center: 0.65, max: 0.85}   # 聚会高峰
+      "22-23": {center: 0.52, max: 0.72}   # 深夜仍活跃
+
+  # --------------------------------------------------------------------------
+  # 6. normal_friday（普通周五）
+  # 周末前夜，晚上负载比工作日高
+  # --------------------------------------------------------------------------
+  normal_friday:
+    description: "普通周五 - 周末前夜，晚上负载比工作日高"
+    enabled: true
+    
+    hour_segments:
+      "0-1":   {center: 0.15, max: 0.30}   # 比工作日略高
+      "2-3":   {center: 0.10, max: 0.22}   # 夜间
+      "4-5":   {center: 0.10, max: 0.20}   # 凌晨
+      "6-7":   {center: 0.20, max: 0.38}   # 早高峰
+      "8-9":   {center: 0.52, max: 0.72}   # 工作高峰略低
+      "10-11": {center: 0.46, max: 0.66}   # 工作时段
+      "12-13": {center: 0.43, max: 0.63}   # 午餐
+      "14-15": {center: 0.42, max: 0.62}   # 下午工作意愿下降
+      "16-17": {center: 0.45, max: 0.65}   # 下班前活跃
+      "18-19": {center: 0.70, max: 0.90}   # 晚高峰（聚餐、娱乐）
+      "20-21": {center: 0.60, max: 0.80}   # 晚间娱乐高峰
+      "22-23": {center: 0.45, max: 0.65}   # 比工作日晚休息
+
+  # --------------------------------------------------------------------------
+  # 7. normal_weekday（周一至周四普通工作日）
+  # 正常上下班模式，早晚高峰明显，午间小高峰
+  # --------------------------------------------------------------------------
+  normal_weekday:
+    description: "普通工作日（周一-周四）- 早晚高峰明显"
+    enabled: true
+    
+    hour_segments:
+      "0-1":   {center: 0.12, max: 0.25}   # 深夜低负载
+      "2-3":   {center: 0.08, max: 0.18}   # 凌晨最低
+      "4-5":   {center: 0.09, max: 0.19}   # 早起少
+      "6-7":   {center: 0.20, max: 0.40}   # 早高峰开始
+      "8-9":   {center: 0.55, max: 0.75}   # 上午通勤高峰
+      "10-11": {center: 0.48, max: 0.68}   # 工作时段
+      "12-13": {center: 0.43, max: 0.63}   # 午间休息
+      "14-15": {center: 0.45, max: 0.65}   # 下午工作
+      "16-17": {center: 0.50, max: 0.70}   # 下午工作高峰
+      "18-19": {center: 0.65, max: 0.85}   # 晚高峰（下班+娱乐）
+      "20-21": {center: 0.50, max: 0.70}   # 晚间娱乐
+      "22-23": {center: 0.28, max: 0.45}   # 逐渐休息
+
+# ============================================================================
+# 输出数据结构定义（Output Schema）
+# ============================================================================
+output_schema:
+  # 原始数据输出格式（每间隔5分钟一个record）
+  raw_data:
+    - name: timestamp
+      type: datetime
+      format: "%m/%d/%Y %I:%M:%S %p"    # 例如：1/1/2025 12:00:00 AM
+      description: "时间戳"
+      
+    - name: gnb_0_load
+      type: float
+      range: [0.0, 1.0]
+      description: "基站1的负载（归一化）"
+      
+    - name: gnb_1_load
+      type: float
+      range: [0.0, 1.0]
+      description: "基站2的负载（归一化）"
+      
+    - name: gnb_2_load
+      type: float
+      range: [0.0, 1.0]
+      description: "基站3的负载（归一化）"
+
+  # 预处理后数据输出格式
+  preprocessed_data:
+    - name: date
+      type: date
+      format: "%Y-%m-%d"            # 例如：2025-01-01
+      description: "日期"
+      
+    - name: hour_range
+      type: string
+      description: "小时范围（0-1, 2-3, ..., 22-23）"
+      
+    - name: min_range
+      type: string
+      description: "分钟范围（0-4, 5-9, 10-14, ..., 55-59）"
+      
+    - name: gnb_0_load
+      type: float
+      range: [0.0, 1.0]
+      description: "基站1的负载"
+      
+    - name: gnb_1_load
+      type: float
+      range: [0.0, 1.0]
+      description: "基站2的负载"
+      
+    - name: gnb_2_load
+      type: float
+      range: [0.0, 1.0]
+      description: "基站3的负载"
+      
+    - name: date_profile
+      type: string
+      enum: [lunar_eve, spring_festival, major_holiday, other_holiday, 
+             pre_holiday, normal_friday, normal_weekday]
+      description: "日期类型"
+
+# ============================================================================
+# 日期映射规则（Date Mapping Rules）
+# 使用 chinese_calendar 库自动识别节假日
+# 判断优先级：lunar_eve -> spring_festival -> major_holiday -> other_holiday
+#             -> pre_holiday -> normal_friday -> normal_weekday
+# ============================================================================
+date_mapping:
+  # 使用 chinese_calendar 自动识别节假日
+  # 注意：需要在 Python 脚本中通过 chinese_calendar 库进行实际判断
+  # 本配置仅定义映射逻辑，不包含具体日期
+  
+  use_chinese_calendar: true        # 启用 chinese_calendar 自动识别
+  
+  # 判断逻辑说明：
+  # 1. 除夕（lunar_eve）: 通过农历日期判断（腊月二十九或三十）
+  # 2. 春节（spring_festival）: 农历正月初一及初二
+  # 3. 重大节假日（major_holiday）: 五一（5月1日）、国庆（10月1日）
+  # 4. 其他节假日（other_holiday）: 其他法定假日 + 周末
+  # 5. 节假日前一天（pre_holiday）: 如果明天是节假日，则今天为 pre_holiday
+  # 6. 普通周五（normal_friday）: 非节假日前一天的周五
+  # 7. 普通工作日（normal_weekday）: 周一至周四的工作日
+  
+  # 重大节假日定义（需在代码中匹配）
+  major_holidays:
+    - name: "元旦"
+      month: 1
+      day: 1
+    - name: "五一劳动节"
+      month: 5
+      day: 1
+    - name: "国庆节"
+      month: 10
+      day: 1
+  
+  # 春节判断规则
+  spring_festival_detection:
+    enabled: true
+    lunar_dates:
+      - {month: 1, day: 1, description: "春节（正月初一）"}
+      - {month: 1, day: 2, description: "春节初二"}
+  
+  # 除夕判断规则
+  lunar_eve_detection:
+    enabled: true
+    description: "农历腊月最后一天"
+  
+  # 节假日前一天判断规则
+  pre_holiday_detection:
+    enabled: true
+    description: "如果明天是节假日（包括周末），则今天为 pre_holiday"
+  
+  # 星期映射（优先级最低，用于非节假日的工作日判断）
+  weekday_map:
+    monday: normal_weekday
+    tuesday: normal_weekday
+    wednesday: normal_weekday
+    thursday: normal_weekday
+    friday: normal_friday          # 普通周五（非节假日前一天）
+    saturday: other_holiday        # 周末
+    sunday: other_holiday          # 周末
+
+# ============================================================================
+# 高级选项
+# ============================================================================
+advanced:
+  # 数据生成平滑度控制
+  smoothing:
+    enabled: true                   # 启用平滑（避免跳变）
+    method: linear_interpolation    # 平滑方法：linear_interpolation | moving_average
+    window_minutes: 15              # 平滑窗口（分钟）
+  
+  # 数据验证
+  validation:
+    enabled: true                   # 启用生成数据的验证
+    check_range: true               # 检查值域范围 [0, 1]
+    check_continuity: true          # 检查连续性（避免突变）
+    max_jump_per_step: 0.15         # 单步最大允许跳变幅度
+  
+  # 性能优化
+  performance:
+    use_vectorization: true         # 使用向量化计算
+    chunk_size: 1000                # 批量处理大小
+    parallel_gnbs: true             # 并行生成多个基站数据
+  
+  # 调试选项
+  debug:
+    enabled: false                  # 调试模式
+    save_intermediate: false        # 保存中间结果
+    log_level: INFO                 # 日志级别: DEBUG | INFO | WARNING | ERROR
+    verbose: false                  # 详细输出
+
+# ============================================================================
+# 元数据
+# ============================================================================
+metadata:
+  version: "3.0"
+  created: "2026-01-19"
+  last_modified: "2026-01-19"
+  description: "数据生成模块独立配置文件 - 基于设计文档规范的7种date_profile"
+  author: "Yu Qiaoli"
+

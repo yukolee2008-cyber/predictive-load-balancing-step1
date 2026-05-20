@@ -1,0 +1,158 @@
+# 系统配置文件：包含仿真与系统级参数（所有注释为中文说明，值保持不变）
+
+system:       # 系统级别配置
+  n_gnbs: 3                    # 基站数量（网络中同时存在的 gNB 数量）
+  simulation_steps: 36         # 仿真步数（3小时 = 36步，每步5分钟）
+  time_interval: 300           # 每步时间间隔（秒）用于仿真内部时间推进
+  max_capacity: 1.0            # 单个基站的最大容量（归一化为1.0）
+  handover_success_rate: 0.99  # 切换成功率（仿真中执行切换的成功概率）
+  departure_rate: 0.005        # 用户离开率（每步离开系统的概率，用于流量动态）
+
+# 预测模型配置：控制模型类型与维度等参数
+prediction:
+  prediction_mode: "load"      # 预测模式 - "load"=绝对负载预测, "delta"=负载增量预测
+  model_type: "transformer"    # 选择预测模型类型：'lstm' 或 'transformer'
+  sequence_length: 24          # 历史序列长度（24步 = 2小时，每步5分钟）
+  prediction_horizon: 3        # 预测步长（3步 = 15分钟）
+  
+  # 数据与特征配置
+  data:
+    processed_data_path: "data/processed/processed_traffic_90days.csv"  # 预处理后的数据路径
+    
+    # 特征编码配置
+    features:
+      n_load_features: 3       # 负载特征数（3个基站）
+      
+      # 时间特征编码方式
+      time_encoding:
+        hour_range:
+          type: "numeric"      # numeric: 归一化数值 (0-1), onehot: one-hot编码
+          range: [0, 11]       # hour_range 的映射范围（0-11对应12个2小时时段）
+        min_range:
+          type: "numeric"      # numeric: 归一化数值 (0-1), onehot: one-hot编码
+          range: [0, 11]       # min_range 的映射范围（0-11对应12个5分钟时段）
+      
+      # 日期类型编码
+      date_profile:
+        type: "onehot"         # one-hot编码
+        categories:            # 7种日期类型（按优先级顺序）
+          - lunar_eve
+          - spring_festival
+          - major_holiday
+          - other_holiday
+          - pre_holiday
+          - normal_friday
+          - normal_weekday
+    
+    # 归一化配置
+    normalization:
+      method: "minmax"         # minmax 或 standard
+      normalize_loads: true    # 是否归一化负载数据
+  
+  # LSTM 模型超参数（仅在 model_type='lstm' 时生效）
+  lstm:
+    input_dim: 12              # 输入特征维度：3(负载) + 2(时间) + 7(日期) = 12
+    hidden_dim: 128            # LSTM 隐藏层维度
+    num_layers: 3              # LSTM 层数
+    output_dim: 3              # 输出维度（3个基站的预测负载）
+    prediction_steps: 3        # 预测步数
+    dropout: 0.3               # dropout 比例
+    bidirectional: false       # 是否启用双向 LSTM
+  
+  # Transformer 模型超参数（仅在 model_type='transformer' 时生效）
+  transformer:
+    input_dim: 12              # 输入特征维度：3(负载) + 2(时间) + 7(日期) = 12
+    d_model: 128               # Transformer 模型维度（embedding 大小）
+    nhead: 8                   # 多头注意力头数量
+    num_encoder_layers: 4      # 编码器层数
+    num_decoder_layers: 2      # 解码器层数
+    dim_feedforward: 512       # 前馈网络隐藏层维度
+    output_dim: 3              # 输出维度（3个基站的预测负载）
+    prediction_steps: 3        # 预测步数
+    dropout: 0.2               # dropout 比例
+
+# 训练相关配置（训练脚本使用）
+training:
+  epochs: 200                  # 训练轮数（增加以充分训练）
+  batch_size: 64               # 每个 batch 的样本数（增大以提高效率）
+  learning_rate: 0.0005        # 初始学习率（降低以稳定训练）
+  weight_decay: 0.00001        # 权重衰减（L2 正则化）
+  optimizer: "adam"            # 优化器选择：'adam' 或 'sgd'
+  
+  # 学习率调度策略
+  scheduler:
+    type: "cosine"             # cosine: 余弦退火, step: 阶梯下降, plateau: 验证损失平台期
+    params:
+      T_max: 200               # 余弦退火周期（与epochs对齐）
+      eta_min: 0.00001         # 最小学习率
+  
+  # 早停配置
+  early_stopping:
+    enabled: true              # 是否启用早停
+    patience: 20               # 多少个epoch无改善则停止
+    min_delta: 0.0001          # 最小改善阈值
+  
+  # 梯度裁剪
+  clip_grad: true              # 是否启用梯度裁剪
+  clip_grad_value: 1.0         # 梯度裁剪阈值
+  
+  # 数据划分
+  train_ratio: 0.7             # 训练集占比（70%）
+  val_ratio: 0.15              # 验证集占比（15%）
+  test_ratio: 0.15             # 测试集占比（15%）
+  
+  # 损失函数
+  loss_function: "mse"         # mse, mae, huber
+  
+  # 验证与日志
+  log_every_n_batches: 10      # 每N个batch记录一次日志
+  save_best_only: true         # 只保存最佳模型
+
+# 决策配置：控制何时触发切换以及迁移量策略
+decision:
+  overload_threshold: 0.7     # 过载阈值（当基站负载 > 此值认为过载，触发迁移判断）
+  max_overload_threshold: 0.9 # 最大过载阈值（Predictive LB临时容忍模式使用，高于此值才丢包）
+  # underload_threshold: 0.25   # 欠载阈值（低于此值的基站视为有可用容量）
+  prediction_horizon: 3       # 决策时使用的预测步长（通常跟 prediction.prediction_horizon 对齐）
+  min_transfer_amount: 0.03   # 单次迁移最小流量比例（低于此值则不执行迁移）
+
+
+# ==========================================
+# 路径配置（集中管理所有路径）
+# ==========================================
+paths:
+  # 基础目录
+  logs: 'logs/'
+  data_base: 'data/'
+  models: 'models/'
+  results_base: 'results/'
+  
+  # 数据子目录
+  data:
+    raw: 'data/raw/'
+    processed: 'data/processed/'
+  
+  # 结果子目录
+  results:
+    simulation: 'results/simulation/'
+    comparison: 'results/comparison/'
+    training: 'results/training/'
+
+# ==========================================
+# 日志配置
+# ==========================================
+logging:
+  level: 'INFO'                              # DEBUG | INFO | WARNING | ERROR
+  format: '%(asctime)s - [%(filename)s:%(lineno)d] - %(levelname)s - %(message)s'
+  timestamp_format: '%Y-%m-%d_%H-%M-%S'
+  console_level: 'INFO'
+  file_level: 'DEBUG'
+
+# ==========================================
+# 输出策略配置
+# ==========================================
+output:
+  data_dir: "data"                          # 数据输出目录（兼容旧配置）
+  model_dir: "models"                       # 模型保存目录
+  results_dir: "results"                    # 结果输出目录
+  training_figures_dir: "results/training/figures"            # 可视化图表目录
